@@ -8,7 +8,7 @@ requires 'Plack::Runner';
 requires 'Plack::Request';
 requires 'XML::Feed';
 requires 'Pod::Usage';
-requries 'Getopt::Long';
+requires 'Getopt::Long';
 
 tests 't/*.t';
 author_tests 'xt';
