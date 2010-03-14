@@ -1,27 +1,33 @@
-This is Perl module ListPod::App::Lite.
+listpod-app-lite
+=============
 
-INSTALLATION
+Convert YouTube Playlist to Podcast feed. branche of listpod.tv.
+-------------
 
-ListPod::App::Lite installation is straightforward. If your CPAN shell is set up,
-you should just be able to do
+http://listpod.tv and http://www.youtubemp4.com are usufull for enjoying Podcasing with YouTube.
 
-    % cpan ListPod::App::Lite
+But YouTube returns "402 Payment Required", so they are not working now.
 
-Download it, unpack it, then build it as per the usual:
+listpod-app-lite is client application instead of these.
 
-    % perl Makefile.PL
-    % make && make test
+This single script enable to convert YouTube playlist to podcast feed.
 
-Then install it:
+You can subscribe this feed on iTunes etc.
 
-    % make install
+Enjoy your podcasting with YouTube.
 
-DOCUMENTATION
 
-ListPod::App::Lite documentation is available as in POD. So you can do:
+USAGE
+-------------
 
-    % perldoc ListPod::App::Lite
+> $ listpod-app-lite -y youtube_playlist_url
 
-to read the documentation online with your favorite pager.
+OR if YouTube return 402 Payment Required on your ip address space.
 
-Yusuke Wada
+> $ listpod-app-lite -y youtube_playlist_url -c safari_cookie_path( OSX only ...) -s AnyEvent
+
+
+AUTHOR
+-------------
+
+Yusuke Wada <yusuke at kamawada.com>

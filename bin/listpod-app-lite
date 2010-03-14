@@ -9,7 +9,7 @@ use XML::Feed;
 use Pod::Usage;
 use Getopt::Long;
 
-use Data::Dumper; # for debug
+#use Data::Dumper; # for debug
 
 =head1 NAME
 
