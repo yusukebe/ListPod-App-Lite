@@ -1,0 +1,27 @@
+This is Perl module ListPod::App::Lite.
+
+INSTALLATION
+
+ListPod::App::Lite installation is straightforward. If your CPAN shell is set up,
+you should just be able to do
+
+    % cpan ListPod::App::Lite
+
+Download it, unpack it, then build it as per the usual:
+
+    % perl Makefile.PL
+    % make && make test
+
+Then install it:
+
+    % make install
+
+DOCUMENTATION
+
+ListPod::App::Lite documentation is available as in POD. So you can do:
+
+    % perldoc ListPod::App::Lite
+
+to read the documentation online with your favorite pager.
+
+Yusuke Wada
