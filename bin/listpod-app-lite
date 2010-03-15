@@ -1,15 +1,23 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
-use LWP::UserAgent;
-use Text::MicroTemplate qw(build_mt);
+use ListPod::App::Lite;
 use Plack::Runner;
-use Plack::Request;
-use XML::Feed;
 use Pod::Usage;
 use Getopt::Long;
 
-#use Data::Dumper; # for debug
+# init
+Getopt::Long::Configure('pass_through');
+my $cookie_file = '';
+GetOptions("cookie=s" => \$cookie_file);
+$cookie_file ||= $ENV{COOKIE_FILE};
+warn "Cookie File: $cookie_file\n" if $cookie_file;
+my $app = ListPod::App::Lite->new( cookie_file => $cookie_file );
+my $runner = Plack::Runner->new;
+$runner->parse_options(@ARGV);
+$runner->run( $app->handler );
+
+__END__
 
 =head1 NAME
 
@@ -17,240 +25,12 @@ listpod-app-lite - Convert YouTube Playlist to Podcast feed. It is branche of li
 
 =head1 SYNOPSIS
 
-    $ listpod-app-lite -y youtube_playlist_url
+    $ listpod-app-lite
 
 If YouTube return 402 Payment Required!!!
 
-    $ listpod-app-lite -y youtube_playlist_url -c safari_cookie_path( OSX only ...) -s AnyEvent
+    $ listpod-app-lite -c safari_cookie_path( OSX only ...) -s AnyEvent
 
 And enjoy your iTunes.
 
 =cut
-
-# init
-Getopt::Long::Configure('pass_through');
-my $cookie_file;
-my $playlist_url;
-GetOptions("cookie=s" => \$cookie_file, "youtube=s" => \$playlist_url );
-pod2usage(0) unless $playlist_url;
-my ($playlist_id) = $playlist_url =~ /p=([^&\s]+)/;
-warn "Cookie File: $cookie_file" if $cookie_file;
-my $base;
-my $ua = ua( $cookie_file );
-my $feed;
-
-# app
-my $app = sub {
-    my $env = shift;
-    my $req = Plack::Request->new( $env );
-    $base = $req->base unless $base;
-    warn $base;
-    if( $req->path_info eq '/' ){
-        my $rss_url = "$base" . "rss";
-        return response(qq{Access <a href="$rss_url">$rss_url</a>}, 'text/html');
-    }elsif( $req->path_info eq "/rss" ){
-        $feed = make_feed() unless $feed;
-        return response($feed,'application/rss+xml');
-    }elsif($req->path_info =~ m!/video/([^\.]+)\.mp4! ){
-        my $video_id = $1;
-        return handle_video( $video_id );
-    }else{
-        return [404,[],['404 Not Found']];
-    }
-};
-my $runner = Plack::Runner->new;
-$runner->parse_options(@ARGV);
-
-$runner->run( $app );
-
-sub ua {
-    my $cookie_file = shift;
-    my $jar = {};
-    $jar = safari_cookies($cookie_file) if $cookie_file;
-    LWP::UserAgent->new( agent => 'listpod-app-lite', cookie_jar => $jar );
-}
-
-sub make_feed {
-    my $playlist = playlist($playlist_id);
-    die "Cant't get playlist!\n" unless $playlist;
-    my $feed = render( $playlist, $base );
-}
-
-sub response {
-    my ( $content, $type ) = @_;
-    return [ 200, [ 'Content-Type' => $type ], [$content] ];
-}
-
-sub handle_video_anyevent {
-    my $url = shift;
-    warn "Handle video with AnyEvent::HTTP\n";
-    require AnyEvent;
-    require AnyEvent::HTTP;
-    my $jar = safari_cookies($cookie_file);
-    my $headers = http_headers_raw( { cookie_jar => $jar } );
-    my $cv = AnyEvent->condvar;
-    warn "Donwloading ... $url\n";
-    AnyEvent::HTTP::http_get(
-        $url,
-        headers => $headers,
-        sub {
-            my $content = shift;
-            $cv->send(
-                [
-                    200,
-                    [
-                        'Content-Type'   => 'video/mp4',
-                        'Content-Length' => length $content
-                    ],
-                    [$content]
-                ]
-            );
-        }
-    );
-    return sub {
-        my $start_response = shift;
-        $cv->cb(
-            sub {
-                warn "Downloaded";
-                $start_response->( shift->recv );
-            }
-        );
-      }
-}
-
-sub http_headers_raw {
-    my $args = shift;
-    my $jar  = $args->{cookie_jar};
-    my $cookie = '';
-    if ($jar) {
-        my $array = [];
-        $jar->scan(
-            sub {
-                return unless $_[4] =~ /\.youtube\.com$/;
-                push @$array, "$_[1]=$_[2]";
-            }
-        );
-        $cookie = join "; ", @$array;
-    }
-    my $headers = {
-        'cookie' => $cookie,
-        #XXX
-    };
-    return $headers;
-}
-
-sub safari_cookies {
-    my $file = shift;
-    # parse Safari cookie
-    # can't work with HTTP::Cookies::Safari
-    # maybe problem of "Expires"??
-    require HTTP::Cookies;
-    require Mac::PropertyList;
-    my $cookie_jar = HTTP::Cookies->new;
-    open my ($fh), $file or return;
-    my $data    = do { local $/; <$fh> };
-    my $plist   = Mac::PropertyList::parse_plist($data);
-    my $cookies = $plist->value;
-    for my $hash (@$cookies) {
-        my $cookie = $hash->value;
-        use YAML;
-        if ( $cookie->{Domain}->value =~ /\.youtube\.com/ ) {
-            $cookie_jar->set_cookie(
-                undef,
-                $cookie->{Name}->value,
-                $cookie->{Value}->value,
-                $cookie->{Path}->value,
-                $cookie->{Domain}->value
-            );
-        }
-    }
-    close $fh;
-    return $cookie_jar;
-}
-
-sub handle_video {
-    my $video_id = shift;
-    my $mp4_url  = mp4_url($video_id);
-    if( $mp4_url ){
-        if( $cookie_file ){
-            handle_video_anyevent( $mp4_url );
-        }else{
-            return [ 302, [ Location => $mp4_url ], [] ];
-        }
-    }else{
-        #XXX
-        return [ 402, [], ['402 Payment Required'] ];
-    }
-}
-
-sub render {
-    my $playlist = shift;
-    my $template = join '', <DATA>;
-    my $renderer = build_mt( $template );
-    my $rss;
-    eval { $rss = $renderer->( $base, $playlist )->as_string };
-    return $rss;
-}
-
-sub token {
-    my $video_id = shift;
-    my $url = "http://www.youtube.com/watch?v=$video_id";
-    $ua->get($url);
-    $url = "http://www.youtube.com/get_video_info?video_id=$video_id";
-    my $res     = $ua->get($url);
-    my $content = $res->content;
-    if ( $content =~ m!&token=([^&]+)&! ) {
-        return $1;
-    }
-    else {
-        #XXX TODO: Check status code.
-        warn $res->status_line . "\n";
-        return;
-    }
-}
-
-sub mp4_url {
-    my $video_id = shift;
-    my $fmt = '18'; #mp4 default
-    my $token = token($video_id);
-    return unless $token;
-    my $url =
-        "http://www.youtube.com/get_video?video_id=$video_id&t=$token&fmt=$fmt";
-    $ua->max_redirect(0);
-    my $res = $ua->get( $url );
-    return $res->headers->header('Location');
-}
-
-sub playlist {
-    my $playlist_id = shift;
-    warn "Getting $playlist_id\n";
-    my $feed =
-      XML::Feed->parse(
-        URI->new("http://gdata.youtube.com/feeds/api/playlists/$playlist_id") )
-      or return;
-    my $videos;
-    for my $entry ( $feed->entries() ) {
-        next unless $entry->link;
-        my ($id) = $entry->link =~ /v=([^&]+)/;
-        push( @$videos, { title => $entry->title, id => $id } );
-    }
-    return { videos => $videos, title => $feed->title, id => $playlist_id };
-}
-__DATA__
-? my ($base, $playlist) = @_;
-?= Text::MicroTemplate::encoded_string '<?xml version="1.0" encoding="UTF-8"?>'
-<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
-  <channel>
-    <title>ListPod on <?= $base ?></title>
-    <link><?= $base ?></link>
-    <description>Podcast generated by ListPod</description>
-? for my $video ( @{ $playlist->{videos} } ) {
-    <item>
-      <link><?= $base ?>#<?= $video->{id} ?></link>
-      <title><?= $video->{title} ?></title>
-      <enclosure url="<?= $base ?>video/<?= $video->{id} ?>.mp4" type="video/mp4" />
-      <media:content url="<?= $base ?>video/<?= $video->{id} ?>.mp4" type="video/mp4"/>
-    </item>
-? }
-  </channel>
-</rss>

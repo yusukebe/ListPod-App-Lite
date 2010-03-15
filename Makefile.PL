@@ -6,7 +6,6 @@ requires 'LWP::UserAgent';
 requires 'Text::MicroTemplate';
 requires 'Plack::Runner';
 requires 'Plack::Request';
-requires 'XML::Feed';
 requires 'Pod::Usage';
 requires 'Getopt::Long';
 
