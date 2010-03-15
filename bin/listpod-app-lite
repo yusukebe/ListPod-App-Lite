@@ -9,7 +9,9 @@ use Getopt::Long;
 # init
 Getopt::Long::Configure('pass_through');
 my $cookie_file = '';
-GetOptions("cookie=s" => \$cookie_file);
+my $help = 0;
+GetOptions("cookie=s" => \$cookie_file, "help" => \$help );
+pod2usage(0) if $help;
 $cookie_file ||= $ENV{COOKIE_FILE};
 warn "Cookie File: $cookie_file\n" if $cookie_file;
 my $app = ListPod::App::Lite->new( cookie_file => $cookie_file );
@@ -25,7 +27,13 @@ listpod-app-lite - Convert YouTube Playlist to Podcast feed. It is branche of li
 
 =head1 SYNOPSIS
 
+Simply. And access http://localhost:5000 .
+
     $ listpod-app-lite
+
+Change port.
+
+    $ listpod-app-lite -p 8080
 
 If YouTube return 402 Payment Required!!!
 
