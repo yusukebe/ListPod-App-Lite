@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use lib ('./lib');
 use ListPod::App::Lite;
 use Plack::Runner;
 use Pod::Usage;
