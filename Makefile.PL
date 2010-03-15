@@ -9,6 +9,11 @@ requires 'Plack::Request';
 requires 'Pod::Usage';
 requires 'Getopt::Long';
 
+recommends 'AnyEvent';
+recommends 'AnyEvevt::HTTP';
+
+install_script('bin/listpod-app-lite');
+
 tests 't/*.t';
 author_tests 'xt';
 
